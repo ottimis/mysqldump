@@ -8,7 +8,8 @@
     "scripts": {
         "build": "rollup -c && dts-bundle-generator -o dist/mysqldump.d.ts build-decl/main.d.ts --umd-module-name=mysqldump && rimraf build-decl",
         "format": "prettier --write \"src/**/*.ts\" \"src/**/*.js\"",
-        "lint": "tslint -p tsconfig.json"
+        "lint": "tslint -p tsconfig.json",
+        "prepublishOnly": "npm run build && npm version patch"
     },
     "repository": {
         "type": "git",
