@@ -7,14 +7,14 @@ export default {
     input: './src/main.ts',
     name: 'mysqldump',
     output: [
-        {
-            file: packageJson.main,
-            format: 'cjs',
-        },
-        {
-            file: packageJson.module,
-            format: 'es',
-        },
+      {
+        file: packageJson.main,
+        format: 'cjs',
+      },
+      {
+        file: packageJson.module,
+        format: 'es',
+      },
     ],
 
     plugins: [
@@ -34,5 +34,6 @@ export default {
         'mysql2/promise',
         'sql-formatter',
         'sqlstring',
+        'rxjs'
     ],
 };

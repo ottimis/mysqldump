@@ -1,23 +1,23 @@
-import * as fs from 'fs';
-import * as zlib from 'zlib';
+import { unlinkSync, renameSync, createReadStream, createWriteStream } from 'fs';
+import { createGzip } from 'zlib';
 
 function compressFile(filename: string): Promise<void> {
     const tempFilename = `${filename}.temp`;
 
-    fs.renameSync(filename, tempFilename);
+    renameSync(filename, tempFilename);
 
     const deleteFile = (file: string): void => {
         try {
-            fs.unlinkSync(file);
+            unlinkSync(file);
         } catch (_err) {
             /* istanbul ignore next */
         }
     };
 
     try {
-        const read = fs.createReadStream(tempFilename);
-        const zip = zlib.createGzip();
-        const write = fs.createWriteStream(filename);
+        const read = createReadStream(tempFilename);
+        const zip = createGzip();
+        const write = createWriteStream(filename);
         read.pipe(zip).pipe(write);
 
         return new Promise((resolve, reject) => {

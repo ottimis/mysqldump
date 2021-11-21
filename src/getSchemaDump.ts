@@ -1,4 +1,4 @@
-import * as sqlformatter from 'sql-formatter';
+import { format as formatSQL } from 'sql-formatter';
 
 import { SchemaDumpOptions } from './interfaces/Options';
 import { Table } from './interfaces/Table';
@@ -26,7 +26,7 @@ async function getSchemaDump(
     tables: Array<Table>,
 ): Promise<Array<Table>> {
     const format = options.format
-        ? (sql: string) => sqlformatter.format(sql)
+        ? (sql: string) => formatSQL(sql)
         : (sql: string) => sql;
 
     // we create a multi query here so we can query all at once rather than in individual connections

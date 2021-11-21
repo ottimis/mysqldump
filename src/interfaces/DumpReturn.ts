@@ -24,4 +24,10 @@ interface DumpReturn {
     tables: Array<Table>;
 }
 
-export { DumpReturn };
+interface ObserveResponse {
+  progress?: number;
+  message?: string;
+  dump?: DumpReturn;
+}
+
+export { DumpReturn, ObserveResponse };

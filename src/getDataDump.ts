@@ -1,11 +1,13 @@
-import * as fs from 'fs';
-import * as mysql from 'mysql2';
-import * as sqlformatter from 'sql-formatter';
+import { createWriteStream } from 'fs';
+import { Connection, createConnection } from 'mysql2';
+import { format as formatSQL } from 'sql-formatter';
 import { all as merge } from 'deepmerge';
 
 import { ConnectionOptions, DataDumpOptions } from './interfaces/Options';
 import { Table } from './interfaces/Table';
 import { typeCast } from './typeCast';
+import { BehaviorSubject } from 'rxjs';
+import { ObserveResponse } from './interfaces/DumpReturn';
 
 interface QueryRes {
     [k: string]: unknown;
@@ -33,7 +35,7 @@ function buildInsertValue(row: QueryRes, table: Table): string {
     return `(${table.columnsOrdered.map(c => row[c]).join(',')})`;
 }
 
-function executeSql(connection: mysql.Connection, sql: string): Promise<void> {
+function executeSql(connection: Connection, sql: string): Promise<void> {
     return new Promise((resolve, reject) =>
         connection.query(sql, err =>
             err ? /* istanbul ignore next */ reject(err) : resolve(),
@@ -47,6 +49,7 @@ async function getDataDump(
     options: Required<DataDumpOptions>,
     tables: Array<Table>,
     dumpToFile: string | null,
+    status: BehaviorSubject<ObserveResponse>,
 ): Promise<Array<Table>> {
     // ensure we have a non-zero max row option
     options.maxRowsPerInsertStatement = Math.max(
@@ -59,11 +62,11 @@ async function getDataDump(
 
     // build the format function if requested
     const format = options.format
-        ? (sql: string) => sqlformatter.format(sql)
+        ? (sql: string) => formatSQL(sql)
         : (sql: string) => sql;
 
     // we open a new connection with a special typecast function for dumping data
-    const connection = mysql.createConnection(
+    const connection = createConnection(
         merge([
             connectionOptions,
             {
@@ -78,7 +81,7 @@ async function getDataDump(
 
     // open the write stream (if configured to)
     const outFileStream = dumpToFile
-        ? fs.createWriteStream(dumpToFile, {
+        ? createWriteStream(dumpToFile, {
               flags: 'a', // append to the file
               encoding: 'utf8',
           })
@@ -107,6 +110,8 @@ async function getDataDump(
             await executeSql(connection, 'SET GLOBAL read_only = ON');
         }
 
+        const totalTables = tables.length;
+        let currentTable = 1;
         // to avoid having to load an entire DB's worth of data at once, we select from each table individually
         // note that we use async/await within this loop to only process one table at a time (to reduce memory footprint)
         while (tables.length > 0) {
@@ -149,7 +154,7 @@ async function getDataDump(
             }
 
             // eslint-disable-next-line no-await-in-loop
-            await new Promise((resolve, reject) => {
+            await new Promise<void>((resolve, reject) => {
                 // send the query
                 const where = options.where[table.name]
                     ? ` WHERE ${options.where[table.name]}`
@@ -157,6 +162,8 @@ async function getDataDump(
                 const query = connection.query(
                     `SELECT * FROM \`${table.name}\`${where}`,
                 );
+
+                status.next({message: `Dumping table: ${table.name}`});
 
                 let rowQueue: Array<string> = [];
 
@@ -180,6 +187,10 @@ async function getDataDump(
                         saveChunk(insert);
                         rowQueue = [];
                     }
+
+                    // Calcolo il progresso in base alle tabelle totali e sottraggo una percentuale dal totale, il 100% lo mandiamo alla fine
+                    status.next({progress: ( currentTable * 100 / totalTables ) - (10 * totalTables / 100), message: `Finished dumping table: ${table.name}`});
+                    currentTable++;
 
                     resolve();
                 });
@@ -216,7 +227,7 @@ async function getDataDump(
 
     if (outFileStream) {
         // tidy up the file stream, making sure writes are 100% flushed before continuing
-        await new Promise(resolve => {
+        await new Promise<void>(resolve => {
             outFileStream.once('finish', () => {
                 resolve();
             });

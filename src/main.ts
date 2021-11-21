@@ -1,4 +1,4 @@
-import * as fs from 'fs';
+import { appendFileSync, writeFileSync } from 'fs';
 import { all as merge } from 'deepmerge';
 
 import {
@@ -6,7 +6,7 @@ import {
     CompletedOptions,
     DataDumpOptions,
 } from './interfaces/Options';
-import { DumpReturn } from './interfaces/DumpReturn';
+import { DumpReturn, ObserveResponse } from './interfaces/DumpReturn';
 import { getTables } from './getTables';
 import { getSchemaDump } from './getSchemaDump';
 import { getTriggerDump } from './getTriggerDump';
@@ -15,6 +15,7 @@ import { compressFile } from './compressFile';
 import { DB } from './DB';
 import { ERRORS } from './Errors';
 import { HEADER_VARIABLES, FOOTER_VARIABLES } from './sessionVariables';
+import { BehaviorSubject, Observable } from 'rxjs';
 
 const defaultOptions: Options = {
     connection: {
@@ -70,8 +71,10 @@ function assert(condition: unknown, message: string): void {
 }
 
 // eslint-disable-next-line complexity, import/no-default-export
-export default async function main(inputOptions: Options): Promise<DumpReturn> {
+export default function main(inputOptions: Options): Observable<ObserveResponse> {
     let connection;
+    const status = new BehaviorSubject({ progress: 0, message: 'Initialing...' });
+    const observable = status.asObservable();
     try {
         // assert the given options have all the required properties
         assert(inputOptions.connection, ERRORS.MISSING_CONNECTION_CONFIG);
@@ -109,105 +112,110 @@ export default async function main(inputOptions: Options): Promise<DumpReturn> {
 
         // write to the destination file (i.e. clear it)
         if (options.dumpToFile) {
-            fs.writeFileSync(options.dumpToFile, '');
+            writeFileSync(options.dumpToFile, '');
         }
 
         // write the initial headers
         if (options.dumpToFile) {
-            fs.appendFileSync(options.dumpToFile, `${HEADER_VARIABLES}\n`);
+            appendFileSync(options.dumpToFile, `${HEADER_VARIABLES}\n`);
         }
 
-        connection = await DB.connect(
-            merge([options.connection, { multipleStatements: true }]),
-        );
+        const observer = async () => {
+          connection = await DB.connect(
+              merge([options.connection, { multipleStatements: true }]),
+          );
 
-        // list the tables
-        const res: DumpReturn = {
-            dump: {
-                schema: null,
-                data: null,
-                trigger: null,
-            },
-            tables: await getTables(
-                connection,
-                options.connection.database,
-                options.dump.tables,
-                options.dump.excludeTables,
-            ),
+          // list the tables
+          const res: DumpReturn = {
+              dump: {
+                  schema: null,
+                  data: null,
+                  trigger: null,
+              },
+              tables: await getTables(
+                  connection,
+                  options.connection.database,
+                  options.dump.tables,
+                  options.dump.excludeTables,
+              ),
+          };
+
+          // dump the schema if requested
+          if (options.dump.schema !== false) {
+              const tables = res.tables;
+              res.tables = await getSchemaDump(
+                  connection,
+                  options.dump.schema,
+                  tables,
+              );
+              res.dump.schema = res.tables
+                  .map(t => t.schema)
+                  .filter(t => t)
+                  .join('\n')
+                  .trim();
+          }
+
+          // write the schema to the file
+          if (options.dumpToFile && res.dump.schema) {
+              appendFileSync(options.dumpToFile, `${res.dump.schema}\n\n`);
+          }
+
+          // dump the triggers if requested
+          if (options.dump.trigger !== false) {
+              const tables = res.tables;
+              res.tables = await getTriggerDump(
+                  connection,
+                  options.connection.database,
+                  options.dump.trigger,
+                  tables,
+              );
+              res.dump.trigger = res.tables
+                  .map(t => t.triggers.join('\n'))
+                  .filter(t => t)
+                  .join('\n')
+                  .trim();
+          }
+
+          // data dump uses its own connection so kill ours
+          await connection.end();
+
+          // dump data if requested
+          if (options.dump.data !== false) {
+              // don't even try to run the data dump
+              const tables = res.tables;
+              res.tables = await getDataDump(
+                  options.connection,
+                  options.dump.data,
+                  tables,
+                  options.dumpToFile,
+                  status
+              );
+              res.dump.data = res.tables
+                  .map(t => t.data)
+                  .filter(t => t)
+                  .join('\n')
+                  .trim();
+          }
+
+          // write the triggers to the file
+          if (options.dumpToFile && res.dump.trigger) {
+              appendFileSync(options.dumpToFile, `${res.dump.trigger}\n\n`);
+          }
+
+          // reset all of the variables
+          if (options.dumpToFile) {
+              appendFileSync(options.dumpToFile, FOOTER_VARIABLES);
+          }
+
+          // compress output file
+          if (options.dumpToFile && options.compressFile) {
+              await compressFile(options.dumpToFile);
+          }
+          status.next({ progress: 100, message: 'Done!' });
         };
 
-        // dump the schema if requested
-        if (options.dump.schema !== false) {
-            const tables = res.tables;
-            res.tables = await getSchemaDump(
-                connection,
-                options.dump.schema,
-                tables,
-            );
-            res.dump.schema = res.tables
-                .map(t => t.schema)
-                .filter(t => t)
-                .join('\n')
-                .trim();
-        }
-
-        // write the schema to the file
-        if (options.dumpToFile && res.dump.schema) {
-            fs.appendFileSync(options.dumpToFile, `${res.dump.schema}\n\n`);
-        }
-
-        // dump the triggers if requested
-        if (options.dump.trigger !== false) {
-            const tables = res.tables;
-            res.tables = await getTriggerDump(
-                connection,
-                options.connection.database,
-                options.dump.trigger,
-                tables,
-            );
-            res.dump.trigger = res.tables
-                .map(t => t.triggers.join('\n'))
-                .filter(t => t)
-                .join('\n')
-                .trim();
-        }
-
-        // data dump uses its own connection so kill ours
-        await connection.end();
-
-        // dump data if requested
-        if (options.dump.data !== false) {
-            // don't even try to run the data dump
-            const tables = res.tables;
-            res.tables = await getDataDump(
-                options.connection,
-                options.dump.data,
-                tables,
-                options.dumpToFile,
-            );
-            res.dump.data = res.tables
-                .map(t => t.data)
-                .filter(t => t)
-                .join('\n')
-                .trim();
-        }
-
-        // write the triggers to the file
-        if (options.dumpToFile && res.dump.trigger) {
-            fs.appendFileSync(options.dumpToFile, `${res.dump.trigger}\n\n`);
-        }
-
-        // reset all of the variables
-        if (options.dumpToFile) {
-            fs.appendFileSync(options.dumpToFile, FOOTER_VARIABLES);
-        }
-
-        // compress output file
-        if (options.dumpToFile && options.compressFile) {
-            await compressFile(options.dumpToFile);
-        }
-
-        return res;
+        observer();
+        return observable;
     } finally {
         DB.cleanup();
     }

@@ -1,5 +1,5 @@
-import { TypecastField } from 'mysql2/promise';
-import * as sqlstring from 'sqlstring';
+import { Field } from 'mysql2/promise';
+import { escape } from 'sqlstring';
 
 import { Table } from './interfaces/Table';
 import { resolveType } from './resolveType';
@@ -147,7 +147,7 @@ function noformatWrap(str: string): string {
 
 const DBNULL = 'NULL';
 
-function typeCast(tables: Array<Table>): (field: TypecastField) => string {
+function typeCast(tables: Array<Table>): (field: Field) => string {
     const tablesByName = tables.reduce((acc, t) => {
         acc.set(t.name, t);
 
@@ -155,7 +155,7 @@ function typeCast(tables: Array<Table>): (field: TypecastField) => string {
     }, new Map<string, Table>());
 
     // eslint-disable-next-line complexity
-    return (field: TypecastField) => {
+    return (field: Field) => {
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         const table = tablesByName.get(field.table)!;
         const columnType = resolveType(table.columns[field.name].type);
@@ -171,7 +171,7 @@ function typeCast(tables: Array<Table>): (field: TypecastField) => string {
             }
         } else if (columnType === 'STRING') {
             // sanitize the string types
-            value = sqlstring.escape(field.string());
+            value = escape(field.string());
         } else if (columnType === 'BIT') {
             // bit fields have a binary representation we have to deal with
             const buf = field.buffer();
