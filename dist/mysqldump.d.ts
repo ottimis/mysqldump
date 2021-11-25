@@ -94,6 +94,11 @@ export interface SchemaDumpOptions {
 	 */
 	format?: boolean;
 	/**
+	 * Format language to pass to the formatter sql.
+	 * Defaults to mysql.
+	 */
+	formatLanguage?: "db2" | "mariadb" | "mysql" | "n1ql" | "plsql" | "postgresql" | "redshift" | "spark" | "sql" | "tsql" | undefined;
+	/**
 	 * Options for table dumps
 	 */
 	table?: {
@@ -163,6 +168,11 @@ export interface DataDumpOptions {
 	 * Defaults to true.
 	 */
 	format?: boolean;
+	/**
+	 * Format language to pass to the formatter sql.
+	 * Defaults to mysql.
+	 */
+	formatLanguage?: "db2" | "mariadb" | "mysql" | "n1ql" | "plsql" | "postgresql" | "redshift" | "spark" | "sql" | "tsql" | undefined;
 	/**
 	 * Include file headers in output
 	 * Defaults to true.

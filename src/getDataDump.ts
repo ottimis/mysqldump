@@ -62,7 +62,7 @@ async function getDataDump(
 
     // build the format function if requested
     const format = options.format
-        ? (sql: string) => formatSQL(sql)
+        ? (sql: string) => formatSQL(sql, { language: options.formatLanguage })
         : (sql: string) => sql;
 
     // we open a new connection with a special typecast function for dumping data

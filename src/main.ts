@@ -32,6 +32,7 @@ const defaultOptions: Options = {
         excludeTables: false,
         schema: {
             format: true,
+            formatLanguage: 'mysql',
             autoIncrement: true,
             engine: true,
             table: {
@@ -48,6 +49,7 @@ const defaultOptions: Options = {
         },
         data: {
             format: true,
+            formatLanguage: 'mysql',
             verbose: true,
             lockTables: false,
             includeViewData: false,

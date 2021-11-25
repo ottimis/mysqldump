@@ -26,7 +26,7 @@ async function getSchemaDump(
     tables: Array<Table>,
 ): Promise<Array<Table>> {
     const format = options.format
-        ? (sql: string) => formatSQL(sql)
+        ? (sql: string) => formatSQL(sql, { language: options.formatLanguage })
         : (sql: string) => sql;
 
     // we create a multi query here so we can query all at once rather than in individual connections
