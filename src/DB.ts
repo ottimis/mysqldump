@@ -28,6 +28,10 @@ class DB {
             isMulti = false;
         }
 
+        if (!sql) {
+          console.error('sql is empty');
+          return [];
+        }
         let res = (await this.connection.query<Array<any>>(sql))[0];
         if (!isMulti) {
             // mysql will return a non-array payload if there's only one statement in the query
