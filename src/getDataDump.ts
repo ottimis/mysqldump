@@ -196,7 +196,7 @@ async function getDataDump(
                 });
                 query.on(
                     'error',
-                    /* istanbul ignore next */ err => reject(err),
+                    /* istanbul ignore next */ err => { status.error('Errore mysqldump query: ' + err.message); console.error('Errore mysqldump query: ', err); reject(err) },
                 );
             });
 
