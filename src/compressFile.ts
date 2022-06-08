@@ -30,6 +30,7 @@ function compressFile(filename: string): Promise<void> {
                 },
             );
             write.on('finish', () => {
+                deleteFile(tempFilename);
                 resolve();
             });
         });
@@ -37,9 +38,6 @@ function compressFile(filename: string): Promise<void> {
         // in case of an error: remove the output file and propagate the error
         deleteFile(filename);
         throw err;
-    } finally {
-        // in any case: remove the temp file
-        deleteFile(tempFilename);
     }
 }
 
